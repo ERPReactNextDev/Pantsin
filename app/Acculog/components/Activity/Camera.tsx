@@ -16,67 +16,43 @@ const CameraCaptureOnTap: React.FC<CameraProps> = ({ onCapture }) => {
 
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const [countdown, setCountdown] = useState<number | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [isFront, setIsFront] = useState(true); // true = front cam, false = back cam
+  const [facingMode, setFacingMode] = useState<"user" | "environment">("user");
 
-  const isSecure = window.isSecureContext || location.protocol === "https:";
-
-  const startCamera = async (facingMode: "user" | "environment") => {
-    if (!isSecure) {
-      setError("Camera access requires HTTPS (or localhost).");
-      return;
-    }
-
-    try {
-      // Stop old stream
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach((t) => t.stop());
-      }
-
-      const constraints: MediaStreamConstraints = {
-        video: { facingMode },
-        audio: false,
-      };
-
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
-
-      const videoTrack = stream.getVideoTracks()[0];
-      if (!videoTrack) throw new Error("No video track found.");
-
-      // Safeguard: block screen/display
-      const label = videoTrack.label.toLowerCase();
-      if (label.includes("screen") || label.includes("display")) {
-        stream.getTracks().forEach((t) => t.stop());
-        throw new Error("Invalid source detected (screen/display instead of camera).");
-      }
-
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-      }
-      streamRef.current = stream;
-      setError(null);
-
-      console.log("✅ Using camera:", videoTrack.label);
-    } catch (err: any) {
-      console.error("Camera error:", err);
-      setError(err.message || "Unable to access camera.");
-    }
+  const startCamera = (mode: "user" | "environment") => {
+    navigator.mediaDevices
+      .getUserMedia({ video: { facingMode: mode } })
+      .then((stream) => {
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+        }
+        streamRef.current = stream;
+      })
+      .catch((err) => {
+        console.error("Camera error:", err);
+      });
   };
 
-  // Start default (front) on mount
   useEffect(() => {
-    startCamera("user");
+    // Start with default camera on mount only
+    startCamera(facingMode);
+
     return () => {
       if (streamRef.current) {
         streamRef.current.getTracks().forEach((t) => t.stop());
       }
     };
-  }, []);
+  }, []); // empty deps, run once
 
   const flipCamera = () => {
-    const nextMode = isFront ? "environment" : "user";
-    setIsFront(!isFront);
-    startCamera(nextMode);
+    const newMode = facingMode === "user" ? "environment" : "user";
+
+    // Stop current stream
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((t) => t.stop());
+    }
+
+    setFacingMode(newMode);
+    startCamera(newMode);
   };
 
   const handleTap = () => {
@@ -92,10 +68,7 @@ const CameraCaptureOnTap: React.FC<CameraProps> = ({ onCapture }) => {
       capture();
       return;
     }
-    const timer = setTimeout(
-      () => setCountdown((prev) => (prev! > 0 ? prev! - 1 : 0)),
-      1000
-    );
+    const timer = setTimeout(() => setCountdown((prev) => (prev! > 0 ? prev! - 1 : 0)), 1000);
     return () => clearTimeout(timer);
   }, [countdown]);
 
@@ -111,6 +84,7 @@ const CameraCaptureOnTap: React.FC<CameraProps> = ({ onCapture }) => {
     ctx.drawImage(videoRef.current, 0, 0, canvasRef.current.width, canvasRef.current.height);
 
     const dataUrl = canvasRef.current.toDataURL("image/jpeg", 0.9);
+
     setCapturedImage(dataUrl);
     onCapture(dataUrl);
 
@@ -122,13 +96,11 @@ const CameraCaptureOnTap: React.FC<CameraProps> = ({ onCapture }) => {
   const retakePhoto = () => {
     setCapturedImage(null);
     setCountdown(null);
-    startCamera(isFront ? "user" : "environment");
+    startCamera(facingMode);
   };
 
   return (
     <div className="w-full flex flex-col items-center gap-2">
-      {error && <p className="text-red-600 font-semibold">{error}</p>}
-
       {!capturedImage && (
         <div
           className="relative w-full max-w-xs cursor-pointer"
