@@ -18,47 +18,75 @@ const CameraCaptureOnTap: React.FC<CameraProps> = ({ onCapture }) => {
   const [countdown, setCountdown] = useState<number | null>(null);
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
   const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  const startCamera = (deviceId?: string) => {
-    const constraints: MediaStreamConstraints = {
-      video: deviceId ? { deviceId: { exact: deviceId } } : { facingMode: "user" },
-    };
+  const isSecure = window.isSecureContext || location.protocol === "https:";
 
-    navigator.mediaDevices
-      .getUserMedia(constraints)
-      .then((stream) => {
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-        }
-        streamRef.current = stream;
-      })
-      .catch((err) => {
-        console.error("Camera error:", err);
-      });
+  const startCamera = async (deviceId?: string) => {
+    if (!isSecure) {
+      setError("Camera access requires HTTPS (or localhost).");
+      return;
+    }
+
+    try {
+      // Stop existing stream kung meron
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((t) => t.stop());
+      }
+
+      const constraints: MediaStreamConstraints = {
+        video: deviceId
+          ? { deviceId: { exact: deviceId } }
+          : { facingMode: { ideal: "user" } },
+        audio: false,
+      };
+
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+      }
+      streamRef.current = stream;
+      setError(null);
+    } catch (err: any) {
+      console.error("Camera error:", err);
+      setError("Unable to access camera. Please check permissions.");
+    }
   };
 
   // Get camera devices
   useEffect(() => {
-    navigator.mediaDevices.enumerateDevices().then((allDevices) => {
-      const videoDevices = allDevices.filter((d) => d.kind === "videoinput");
-      setDevices(videoDevices);
-      if (videoDevices.length > 0) {
-        setSelectedDeviceId(videoDevices[0].deviceId); // default to first camera
-      }
-    });
-  }, []);
-
-  // Start/restart camera when device changes
-  useEffect(() => {
-    if (!selectedDeviceId) return;
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((t) => t.stop());
+    if (!isSecure) {
+      setError("Camera access requires HTTPS (or localhost).");
+      return;
     }
-    startCamera(selectedDeviceId);
+
+    const loadDevices = async () => {
+      try {
+        const allDevices = await navigator.mediaDevices.enumerateDevices();
+        const videoDevices = allDevices.filter((d) => d.kind === "videoinput");
+        setDevices(videoDevices);
+        if (videoDevices.length > 0) {
+          setSelectedDeviceId(videoDevices[0].deviceId);
+        }
+      } catch (err) {
+        console.error("Error listing devices:", err);
+        setError("Unable to list camera devices.");
+      }
+    };
+
+    loadDevices();
+  }, [isSecure]);
+
+  // Start camera when device changes
+  useEffect(() => {
+    if (selectedDeviceId) {
+      startCamera(selectedDeviceId);
+    }
   }, [selectedDeviceId]);
 
   const flipCamera = () => {
-    if (devices.length < 2) return; // nothing to flip
+    if (devices.length < 2) return;
     const currentIndex = devices.findIndex((d) => d.deviceId === selectedDeviceId);
     const nextIndex = (currentIndex + 1) % devices.length;
     setSelectedDeviceId(devices[nextIndex].deviceId);
@@ -96,7 +124,6 @@ const CameraCaptureOnTap: React.FC<CameraProps> = ({ onCapture }) => {
     ctx.drawImage(videoRef.current, 0, 0, canvasRef.current.width, canvasRef.current.height);
 
     const dataUrl = canvasRef.current.toDataURL("image/jpeg", 0.9);
-
     setCapturedImage(dataUrl);
     onCapture(dataUrl);
 
@@ -113,7 +140,8 @@ const CameraCaptureOnTap: React.FC<CameraProps> = ({ onCapture }) => {
 
   return (
     <div className="w-full flex flex-col items-center gap-2">
-      {/* Camera selector */}
+      {error && <p className="text-red-600 font-semibold">{error}</p>}
+
       {!capturedImage && devices.length > 0 && (
         <select
           value={selectedDeviceId || ""}
