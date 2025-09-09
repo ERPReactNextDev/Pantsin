@@ -16,44 +16,38 @@ const CameraCaptureOnTap: React.FC<CameraProps> = ({ onCapture }) => {
 
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const [countdown, setCountdown] = useState<number | null>(null);
-  const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
-  const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isFront, setIsFront] = useState(true); // true = front cam, false = back cam
 
   const isSecure = window.isSecureContext || location.protocol === "https:";
 
-  const startCamera = async (deviceId?: string) => {
+  const startCamera = async (facingMode: "user" | "environment") => {
     if (!isSecure) {
       setError("Camera access requires HTTPS (or localhost).");
       return;
     }
 
     try {
-      // Stop old stream if any
+      // Stop old stream
       if (streamRef.current) {
         streamRef.current.getTracks().forEach((t) => t.stop());
       }
 
       const constraints: MediaStreamConstraints = {
-        video: deviceId
-          ? { deviceId: { ideal: deviceId } } // ideal para may fallback
-          : { facingMode: { ideal: "user" } }, // fallback user-facing
+        video: { facingMode },
         audio: false,
       };
 
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
 
-      // Get first video track
       const videoTrack = stream.getVideoTracks()[0];
-      if (!videoTrack) {
-        throw new Error("No video track found (camera not accessible).");
-      }
+      if (!videoTrack) throw new Error("No video track found.");
 
-      // Safeguard: block screen/display recording sources
+      // Safeguard: block screen/display
       const label = videoTrack.label.toLowerCase();
       if (label.includes("screen") || label.includes("display")) {
         stream.getTracks().forEach((t) => t.stop());
-        throw new Error("Invalid video source detected (screen/display instead of camera).");
+        throw new Error("Invalid source detected (screen/display instead of camera).");
       }
 
       if (videoRef.current) {
@@ -65,48 +59,24 @@ const CameraCaptureOnTap: React.FC<CameraProps> = ({ onCapture }) => {
       console.log("✅ Using camera:", videoTrack.label);
     } catch (err: any) {
       console.error("Camera error:", err);
-      setError(err.message || "Unable to access a valid camera. Please check permissions.");
+      setError(err.message || "Unable to access camera.");
     }
   };
 
-  // Get available devices
+  // Start default (front) on mount
   useEffect(() => {
-    if (!isSecure) {
-      setError("Camera access requires HTTPS (or localhost).");
-      return;
-    }
-
-    const loadDevices = async () => {
-      try {
-        const allDevices = await navigator.mediaDevices.enumerateDevices();
-        const videoDevices = allDevices.filter((d) => d.kind === "videoinput");
-        setDevices(videoDevices);
-        if (videoDevices.length > 0) {
-          setSelectedDeviceId(videoDevices[0].deviceId);
-        } else {
-          setError("No camera devices found.");
-        }
-      } catch (err) {
-        console.error("Error listing devices:", err);
-        setError("Unable to list camera devices.");
+    startCamera("user");
+    return () => {
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((t) => t.stop());
       }
     };
-
-    loadDevices();
-  }, [isSecure]);
-
-  // Restart camera when device changes
-  useEffect(() => {
-    if (selectedDeviceId) {
-      startCamera(selectedDeviceId);
-    }
-  }, [selectedDeviceId]);
+  }, []);
 
   const flipCamera = () => {
-    if (devices.length < 2) return;
-    const currentIndex = devices.findIndex((d) => d.deviceId === selectedDeviceId);
-    const nextIndex = (currentIndex + 1) % devices.length;
-    setSelectedDeviceId(devices[nextIndex].deviceId);
+    const nextMode = isFront ? "environment" : "user";
+    setIsFront(!isFront);
+    startCamera(nextMode);
   };
 
   const handleTap = () => {
@@ -152,26 +122,12 @@ const CameraCaptureOnTap: React.FC<CameraProps> = ({ onCapture }) => {
   const retakePhoto = () => {
     setCapturedImage(null);
     setCountdown(null);
-    if (selectedDeviceId) startCamera(selectedDeviceId);
+    startCamera(isFront ? "user" : "environment");
   };
 
   return (
     <div className="w-full flex flex-col items-center gap-2">
       {error && <p className="text-red-600 font-semibold">{error}</p>}
-
-      {!capturedImage && devices.length > 0 && (
-        <select
-          value={selectedDeviceId || ""}
-          onChange={(e) => setSelectedDeviceId(e.target.value)}
-          className="mb-2 border px-2 py-1 rounded"
-        >
-          {devices.map((d, idx) => (
-            <option key={d.deviceId} value={d.deviceId}>
-              {d.label || `Camera ${idx + 1}`}
-            </option>
-          ))}
-        </select>
-      )}
 
       {!capturedImage && (
         <div
@@ -203,7 +159,7 @@ const CameraCaptureOnTap: React.FC<CameraProps> = ({ onCapture }) => {
         </div>
       )}
 
-      {!capturedImage && devices.length > 1 && (
+      {!capturedImage && (
         <button
           type="button"
           onClick={flipCamera}
