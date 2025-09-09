@@ -29,32 +29,47 @@ const CameraCaptureOnTap: React.FC<CameraProps> = ({ onCapture }) => {
     }
 
     try {
-      // Stop existing stream kung meron
+      // Stop old stream if any
       if (streamRef.current) {
         streamRef.current.getTracks().forEach((t) => t.stop());
       }
 
       const constraints: MediaStreamConstraints = {
         video: deviceId
-          ? { deviceId: { exact: deviceId } }
-          : { facingMode: { ideal: "user" } },
+          ? { deviceId: { ideal: deviceId } } // ideal para may fallback
+          : { facingMode: { ideal: "user" } }, // fallback user-facing
         audio: false,
       };
 
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
+
+      // Get first video track
+      const videoTrack = stream.getVideoTracks()[0];
+      if (!videoTrack) {
+        throw new Error("No video track found (camera not accessible).");
+      }
+
+      // Safeguard: block screen/display recording sources
+      const label = videoTrack.label.toLowerCase();
+      if (label.includes("screen") || label.includes("display")) {
+        stream.getTracks().forEach((t) => t.stop());
+        throw new Error("Invalid video source detected (screen/display instead of camera).");
+      }
 
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
       }
       streamRef.current = stream;
       setError(null);
+
+      console.log("✅ Using camera:", videoTrack.label);
     } catch (err: any) {
       console.error("Camera error:", err);
-      setError("Unable to access camera. Please check permissions.");
+      setError(err.message || "Unable to access a valid camera. Please check permissions.");
     }
   };
 
-  // Get camera devices
+  // Get available devices
   useEffect(() => {
     if (!isSecure) {
       setError("Camera access requires HTTPS (or localhost).");
@@ -68,6 +83,8 @@ const CameraCaptureOnTap: React.FC<CameraProps> = ({ onCapture }) => {
         setDevices(videoDevices);
         if (videoDevices.length > 0) {
           setSelectedDeviceId(videoDevices[0].deviceId);
+        } else {
+          setError("No camera devices found.");
         }
       } catch (err) {
         console.error("Error listing devices:", err);
@@ -78,7 +95,7 @@ const CameraCaptureOnTap: React.FC<CameraProps> = ({ onCapture }) => {
     loadDevices();
   }, [isSecure]);
 
-  // Start camera when device changes
+  // Restart camera when device changes
   useEffect(() => {
     if (selectedDeviceId) {
       startCamera(selectedDeviceId);
