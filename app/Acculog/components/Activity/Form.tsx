@@ -183,7 +183,6 @@ const Form: React.FC<FormProps> = ({
               >
                 <option value="">Select Type</option>
                 <option value="On Field">On Field</option>
-                <option value="On Site">On Site</option>
               </select>
             </div>
 
