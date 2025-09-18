@@ -69,7 +69,7 @@ const Table: React.FC<TableProps> = ({ groupedByEmail }) => {
 
         // standard working times
         const startOfDay = new Date(logDate);
-        startOfDay.setHours(8, 0, 0, 0);
+        startOfDay.setHours(8, 1, 0, 0);
 
         const morningCutoff = new Date(logDate);
         morningCutoff.setHours(12, 59, 59, 999);
@@ -166,7 +166,7 @@ const Table: React.FC<TableProps> = ({ groupedByEmail }) => {
 
                 // standard refs
                 const startOfDay = new Date(logDate);
-                startOfDay.setHours(8, 0, 0, 0);
+                startOfDay.setHours(8, 1, 0, 0);
 
                 const endOfDay = new Date(logDate);
                 endOfDay.setHours(17, 0, 0, 0);
@@ -270,7 +270,7 @@ const Table: React.FC<TableProps> = ({ groupedByEmail }) => {
 
             // standard refs
             const startOfDay = new Date(logDate);
-            startOfDay.setHours(8, 0, 0, 0);
+            startOfDay.setHours(8, 1, 0, 0);
 
             const endOfDay = new Date(logDate);
             endOfDay.setHours(17, 0, 0, 0);
