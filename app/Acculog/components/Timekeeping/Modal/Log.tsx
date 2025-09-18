@@ -28,7 +28,7 @@ const LogModal: React.FC<LogModalProps> = ({
     filteredLogs.forEach((log) => {
         const logDate = new Date(log.date_created);
         const startOfDay = new Date(logDate);
-        startOfDay.setHours(8, 0, 0, 0);
+        startOfDay.setHours(8, 1, 0, 0);
         const endOfDay = new Date(logDate);
         endOfDay.setHours(17, 30, 0, 0);
 
