@@ -55,9 +55,9 @@ const formatDuration = (ms: number): string => {
 const computeTimeRemarks = (log: ActivityLog): string => {
   const logDate = new Date(log.date_created);
 
-  // ✅ Work start: 8:00 AM
+  // ✅ Work start: 8:01 AM
   const workStart = new Date(log.date_created);
-  workStart.setHours(8, 0, 0, 0);
+  workStart.setHours(8, 1, 0, 0);
 
   // ✅ Morning end: 12:59 PM
   const morningEnd = new Date(log.date_created);
