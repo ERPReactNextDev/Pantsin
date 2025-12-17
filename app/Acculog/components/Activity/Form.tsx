@@ -41,6 +41,8 @@ const Form: React.FC<FormProps> = ({
   const [uploading, setUploading] = useState(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const [lastStatus, setLastStatus] = useState<"Login" | "Logout" | null>(null);
+  const [lastTime, setLastTime] = useState<string | null>(null);
 
   // Start camera and get location
   useEffect(() => {
@@ -82,6 +84,36 @@ const Form: React.FC<FormProps> = ({
       }
     };
   }, []);
+
+  useEffect(() => {
+    const fetchLastStatus = async () => {
+      try {
+        const res = await fetch(
+          `/api/ModuleSales/Activity/LastStatus?referenceId=${userDetails.ReferenceID}`
+        );
+        if (!res.ok) return;
+
+        const data = await res.json();
+
+        if (data?.Status) {
+          setLastStatus(data.Status);
+          setLastTime(
+            new Date(data.date_created).toLocaleTimeString("en-PH", {
+              hour: "2-digit",
+              minute: "2-digit",
+            })
+          );
+        } else {
+          setLastStatus(null);
+          setLastTime(null);
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    };
+
+    fetchLastStatus();
+  }, [userDetails.ReferenceID]);
 
   const uploadToCloudinary = async (base64Image: string): Promise<string> => {
     const formData = new FormData();
@@ -125,7 +157,16 @@ const Form: React.FC<FormProps> = ({
         body: JSON.stringify(payload),
       });
 
-      if (!response.ok) throw new Error("Failed to save");
+      if (!response.ok) {
+        const errorData = await response.json();
+
+        if (response.status === 409) {
+          toast.warning(errorData.error || "Login already submitted today.");
+          return;
+        }
+
+        throw new Error(errorData.error || "Failed to save");
+      }
 
       toast.success(formData._id ? "Activity updated!" : "Activity added!");
       setCapturedImage(null);
@@ -172,6 +213,30 @@ const Form: React.FC<FormProps> = ({
               {formData._id ? "✏️ Update Activity" : "➕ Add Activity"}
             </h3>
 
+            {lastStatus && (
+              <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs">
+                <p>
+                  <strong>Current Status:</strong>{" "}
+                  <span
+                    className={
+                      lastStatus === "Login"
+                        ? "text-green-600 font-semibold"
+                        : "text-red-600 font-semibold"
+                    }
+                  >
+                    {lastStatus === "Login" ? "Logged In" : "Logged Out"}
+                  </span>
+                </p>
+
+                {lastTime && (
+                  <p className="text-gray-500 mt-1">
+                    Last activity: {lastTime}
+                  </p>
+                )}
+              </div>
+            )}
+
+
             {/* Type */}
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Type</label>
@@ -190,15 +255,29 @@ const Form: React.FC<FormProps> = ({
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Status</label>
               <select
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-xs focus:ring-2 focus:ring-black focus:outline-none transition-all"
-                value={formData.Status}
-                onChange={(e) => onChange("Status", e.target.value)}
-                required
-              >
-                <option value="">Select Status</option>
-                <option value="Login">Login</option>
-                <option value="Logout">Logout</option>
-              </select>
+  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-xs
+             focus:ring-2 focus:ring-black focus:outline-none transition-all"
+  value={formData.Status}
+  onChange={(e) => onChange("Status", e.target.value)}
+  required
+>
+  <option value="">Select Status</option>
+
+  <option
+    value="Login"
+    disabled={lastStatus === "Login"}
+  >
+    Login {lastStatus === "Login" ? "(Current)" : ""}
+  </option>
+
+  <option
+    value="Logout"
+    disabled={lastStatus === "Logout"}
+  >
+    Logout {lastStatus === "Logout" ? "(Current)" : ""}
+  </option>
+</select>
+
             </div>
 
             {/* Remarks */}
