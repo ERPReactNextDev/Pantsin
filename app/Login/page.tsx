@@ -119,15 +119,6 @@ const Login: React.FC = () => {
           </button>
         </form>
 
-        {/* Fingerprint Login */}
-        <button
-          type="button"
-          onClick={handleVerifyFingerprint}
-          className="mt-3 w-full py-3 border border-cyan-400 text-cyan-600 font-medium text-sm rounded-lg hover:bg-cyan-50 transition-all duration-300 flex items-center justify-center gap-2"
-        >
-          <LuFingerprint size={16} /> Sign In with Fingerprint
-        </button>
-
         {/* Footer */}
         <p className="mt-4 text-[10px] text-center text-gray-400 font-medium">
           Acculog © {new Date().getFullYear()} | Attendance & Time Tracking System
